@@ -1,5 +1,9 @@
 import influxdb
 
+from datetime import datetime
+
+DB = 'crazyhouse'
+
 
 def readfiles():
     datas = []
@@ -11,6 +15,9 @@ def readfiles():
 
 
 def make_measurement(datas):
+    """
+    :datas: A List, first item is time, second is new_house, third is second_house.
+    """
     datapoints = []
 
     for data in datas:
@@ -41,18 +48,29 @@ def get_influxdb():
     port = 8086
     user = 'root'
     password = 'root'
-    dbname = 'crazyhouse'
+    dbname = DB
 
     db = influxdb.InfluxDBClient(host, port, user, password, dbname)
     db.create_database(dbname)
     return db
 
 
-def main():
-    datas = readfiles()
+def get_latest_time():
     db = get_influxdb()
-    dts = make_measurement(datas)
-    assert db.write_points(dts, database='crazyhouse', batch_size=50)
+    result = db.query('select * from new_house order by time desc limit 1',
+                      database=DB)
+    time_str = result['new_house'].next()['time']
+    return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%SZ')
+
+
+def insert(date, newnum, oldnum):
+    db = get_influxdb()
+    dts = make_measurement([[date, newnum, oldnum]])
+    assert db.write_points(dts, database=DB, batch_size=50)
+
+
+def main():
+    print get_latest_time()
 
 
 if __name__ == '__main__':
